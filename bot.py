@@ -1,4 +1,3 @@
-# app.py
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -11,9 +10,9 @@ async def root():
 @app.post("/process")
 async def process_data(request: Request):
     data = await request.json()
-    # Обработка данных тут
+    # Здесь можешь добавить обработку данных
     return JSONResponse(content={"received": data})
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+    uvicorn.run("bot:app", host="0.0.0.0", port=8000)
