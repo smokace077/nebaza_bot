@@ -1,48 +1,43 @@
 from fastapi import FastAPI, Request
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Bot, Update
+from telegram.ext import Dispatcher, CommandHandler
+import json
 import os
 
-TOKEN = "7927251921:AAHWATrztnIFIeflJ5uI-1lYVcc2IHuX4gg"
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = f"https://nebaza-bot.onrender.com{WEBHOOK_PATH}"
+TOKEN = os.getenv("BOT_TOKEN", "7927251921:AAHWATrztnIFIeflJ5uI-1lYVcc2IHuX4gg")
 
 app = FastAPI()
-telegram_app = ApplicationBuilder().token(TOKEN).build()
+telegram_bot = Bot(token=TOKEN)
+dispatcher = Dispatcher(telegram_bot, None, use_context=True)
 
 
-# === Telegram handler ===
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Бот готов к работе.")
+# Обработчик команды /start
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Привет! Бот работает.")
 
 
-telegram_app.add_handler(CommandHandler("start", start))
+# Регистрируем обработчик
+dispatcher.add_handler(CommandHandler("start", start))
 
 
-@app.on_event("startup")
-async def startup_event():
-    await telegram_app.initialize()
-    await telegram_app.start()
-    await telegram_app.bot.set_webhook(WEBHOOK_URL)
-    print("✅ Webhook установлен:", WEBHOOK_URL)
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    await telegram_app.bot.delete_webhook()
-    await telegram_app.stop()
-    await telegram_app.shutdown()
-    print("🛑 Webhook удалён и бот остановлен")
-
-
-@app.post(WEBHOOK_PATH)
+# Вебхук от Telegram
+@app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.body()
-    update = Update.de_json(data.decode("utf-8"), telegram_app.bot)
-    await telegram_app.process_update(update)
-    return {"status": "ok"}
+    update = Update.de_json(json.loads(data.decode("utf-8")), telegram_bot)
+    dispatcher.process_update(update)
+    return {"ok": True}
 
 
+# Главная страница для проверки (GET-запросы)
 @app.get("/")
 async def root():
-    return {"message": "FastAPI + Telegram Webhook работает"}
+    return {"message": "Бот работает. Используй /webhook для Telegram."}
+
+
+# Установка вебхука при старте
+@app.on_event("startup")
+async def on_startup():
+    webhook_url = "https://nebaza-bot.onrender.com/webhook"
+    await telegram_bot.set_webhook(webhook_url)
+    print(f"✅ Webhook установлен: {webhook_url}")
