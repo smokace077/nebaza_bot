@@ -1,42 +1,38 @@
 # bot.py
-from fastapi import FastAPI
-from telegram import Update, Bot
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, filters
-import asyncio
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = "7927251921:AAHWATrztnIFIeflJ5uI-1lYVcc2IHuX4gg"
 
 app = FastAPI()
-bot = Bot(token=TOKEN)
-dp = Dispatcher(bot, update_queue=None, use_context=True)
 
-# Обработчик команды /start
-async def start(update: Update, context):
-    await update.message.reply_text("Привет! Я бот на FastAPI")
+# Telegram команда /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привет! Бот запущен и работает.")
 
-# Эхо-обработчик: повторяет сообщение пользователя
-async def echo(update: Update, context):
-    await update.message.reply_text(f"Ты написал: {update.message.text}")
-
-dp.add_handler(CommandHandler("start", start))
-dp.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), echo))
-
-@app.on_event("startup")
-async def startup_event():
-    async def run_bot():
-        offset = None
-        while True:
-            updates = await bot.get_updates(offset=offset, timeout=10)
-            for update in updates:
-                offset = update.update_id + 1
-                dp.process_update(update)
-            await asyncio.sleep(1)
-
-    asyncio.create_task(run_bot())
+# Запускаем Telegram Application отдельно
+telegram_app = ApplicationBuilder().token(TOKEN).build()
+telegram_app.add_handler(CommandHandler("start", start))
 
 @app.get("/")
 async def root():
-    return {"message": "Бот запущен и работает!"}
+    return {"message": "Hello, FastAPI is working!"}
+
+@app.post("/process")
+async def process_data(request: Request):
+    data = await request.json()
+    return JSONResponse(content={"received": data})
+
+# Запуск бота как background task или отдельным процессом — простой вариант для Render:
+import asyncio
+
+@app.on_event("startup")
+async def startup_event():
+    # Запускаем Telegram бота в фоне
+    asyncio.create_task(telegram_app.run_polling())
 
 if __name__ == "__main__":
     import uvicorn
