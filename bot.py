@@ -1,10 +1,19 @@
-from aiohttp import web
+# app.py
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-async def handle(request):
-    return web.Response(text="Hello, world!")
+app = FastAPI()
 
-app = web.Application()
-app.router.add_get('/', handle)
+@app.get("/")
+async def root():
+    return {"message": "Hello, FastAPI is working!"}
 
-if __name__ == '__main__':
-    web.run_app(app, host='0.0.0.0', port=8080)
+@app.post("/process")
+async def process_data(request: Request):
+    data = await request.json()
+    # Обработка данных тут
+    return JSONResponse(content={"received": data})
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)
