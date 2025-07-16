@@ -1,43 +1,57 @@
+import logging
 from fastapi import FastAPI, Request
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler
-import json
-import os
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+)
 
-TOKEN = os.getenv("BOT_TOKEN", "7927251921:AAHWATrztnIFIeflJ5uI-1lYVcc2IHuX4gg")
+# 👉 ВСТАВЛЕННЫЙ ТОКЕН
+BOT_TOKEN = "7644687597:AAEmXG5dCMkEHkkR2OOcZ1ixPtXPJdA1sY4"
 
+# Логирование
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+
+# FastAPI-приложение
 app = FastAPI()
-telegram_bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(telegram_bot, None, use_context=True)
+
+# Telegram-приложение
+telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 
-# Обработчик команды /start
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Привет! Бот работает.")
+# Стартовая команда
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привет! Бот работает 🚀")
 
 
-# Регистрируем обработчик
-dispatcher.add_handler(CommandHandler("start", start))
-
-
-# Вебхук от Telegram
+# Роут от FastAPI — хук для Telegram webhook
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
-    data = await request.body()
-    update = Update.de_json(json.loads(data.decode("utf-8")), telegram_bot)
-    dispatcher.process_update(update)
+    update = await request.json()
+    await telegram_app.process_update(Update.de_json(update, telegram_app.bot))
     return {"ok": True}
 
 
-# Главная страница для проверки (GET-запросы)
-@app.get("/")
-async def root():
-    return {"message": "Бот работает. Используй /webhook для Telegram."}
+# Добавление хендлеров
+telegram_app.add_handler(CommandHandler("start", start))
 
 
-# Установка вебхука при старте
+# Запуск Telegram-бота в фоне при старте FastAPI
 @app.on_event("startup")
-async def on_startup():
+async def startup_event():
+    # Устанавливаем webhook
     webhook_url = "https://nebaza-bot.onrender.com/webhook"
-    await telegram_bot.set_webhook(webhook_url)
-    print(f"✅ Webhook установлен: {webhook_url}")
+    await telegram_app.bot.set_webhook(webhook_url)
+    # Запускаем telegram-приложение в фоне
+    telegram_app.initialize()
+    await telegram_app.start()
+    await telegram_app.updater.start_polling()  # Необязателен, если только webhook
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await telegram_app.updater.stop()
+    await telegram_app.stop()
